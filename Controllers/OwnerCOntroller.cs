@@ -13,10 +13,13 @@ namespace PokemonReviewApp.Controllers
     {
         private readonly IMapper _mapper;
         private readonly IOwnerRepository _ownerRepository;
-        public OwnerCOntroller(IOwnerRepository ownerRepository, IMapper mapper)
+        private readonly ICountryRepository _countryRepository;
+        public OwnerCOntroller(IOwnerRepository ownerRepository, IMapper mapper, ICountryRepository countryRepository)
         {
             _mapper = mapper;
             _ownerRepository = ownerRepository;
+            _countryRepository = countryRepository;
+
         }
 
         [HttpGet]
@@ -62,6 +65,76 @@ namespace PokemonReviewApp.Controllers
                 return BadRequest(ModelState);
             }
             return Ok(Owner);
+        }
+
+        [HttpPost]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(400)]
+        public IActionResult CreateOwner([FromQuery] int countryId, [FromBody] OwnerDto ownerCreate)
+        {
+            if (ownerCreate == null)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var owner = _ownerRepository.GetOwners()
+                .Where(c => c.LastName.Trim().ToUpper() == ownerCreate.LastName.Trim().ToUpper())
+                .FirstOrDefault();
+            if (owner != null)
+            {
+                ModelState.AddModelError("", "owner aleready exists");
+                return StatusCode(422, ModelState);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var ownerMap = _mapper.Map<Owner>(ownerCreate);
+
+            ownerMap.Country = _countryRepository.GetCountry(countryId);
+
+            if (!_ownerRepository.CreateOwner(ownerMap))
+            {
+                ModelState.AddModelError("", "Something wne t wrong while saving");
+                return StatusCode(500, ModelState);
+            }
+
+            return Ok("Successfully created");
+        }
+
+        [HttpPut("{ownerId}")]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public IActionResult UpdateCountry(int ownerId, [FromBody] OwnerDto updatedOwner)
+        {
+            if (updatedOwner == null)
+            {
+                return BadRequest(ModelState);
+            }
+            if (ownerId != updatedOwner.Id)
+            {
+                return BadRequest(ModelState);
+            }
+            if (!_ownerRepository.OwnerExists(ownerId))
+            {
+                return NotFound();
+            }
+            if (!ModelState.IsValid)
+            {
+                return BadRequest();
+            }
+            var ownerMap = _mapper.Map<Owner>(updatedOwner);
+
+            if (!_ownerRepository.UpdateOwner(ownerMap))
+            {
+                ModelState.AddModelError("", "Something went wrong updating category");
+                return StatusCode(500, ModelState);
+            }
+
+            return NoContent();
         }
     }
 }

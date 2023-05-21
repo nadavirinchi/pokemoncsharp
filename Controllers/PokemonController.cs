@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PokemonReviewApp.Dto;
 using PokemonReviewApp.Interfaces;
 using PokemonReviewApp.Models;
+using PokemonReviewApp.Repository;
 
 namespace PokemonReviewApp.Controllers
 {
@@ -11,10 +12,14 @@ namespace PokemonReviewApp.Controllers
     public class PokemonController : Controller
     {
         private readonly IpokemonRepository _pokemonRepository;
+        private readonly IReviewRepository _reviewRepository;
         private readonly IMapper _mapper;
-        public PokemonController(IpokemonRepository pokemonRepository, IMapper mapper)
+        public PokemonController(IpokemonRepository pokemonRepository,
+            IReviewRepository reviewRepository,   
+            IMapper mapper)
         {
             _pokemonRepository = pokemonRepository;
+            _reviewRepository = reviewRepository;
             _mapper = mapper;
         }
         [HttpGet]
@@ -55,6 +60,39 @@ namespace PokemonReviewApp.Controllers
                 return BadRequest(ModelState);
             }
             return Ok(rating);
+        }
+
+        [HttpPut("{pokeId}")]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public IActionResult UpdatePokemon([FromQuery]int pokeId, [FromQuery] int ownerId, [FromQuery] int categoryId, [FromBody] PokemonDto updatedPokemon)
+        {
+            if (updatedPokemon == null)
+            {
+                return BadRequest(ModelState);
+            }
+            if (pokeId != updatedPokemon.Id)
+            {
+                return BadRequest(ModelState);
+            }
+            if (!_pokemonRepository.PokemonExists(pokeId))
+            {
+                return NotFound();
+            }
+            if (!ModelState.IsValid)
+            {
+                return BadRequest();
+            }
+            var pokemonMap = _mapper.Map<Pokemon>(updatedPokemon);
+
+            if (!_pokemonRepository.UpdatePokemon(ownerId, categoryId, pokemonMap))
+            {
+                ModelState.AddModelError("", "Something went wrong updating category");
+                return StatusCode(500, ModelState);
+            }
+
+            return NoContent();
         }
     }
 }
